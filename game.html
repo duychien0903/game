@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>SlitherX – Premium v2</title>
+<meta name="description" content="Snake arena với AI raycast, đồ họa bezier mượt mà và hiệu ứng nebula.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#000;overflow:hidden;font-family:'Outfit',sans-serif;user-select:none;-webkit-user-select:none}
+canvas{display:block;position:fixed;inset:0}
+
+/* ── HUD ─────────────────────────────── */
+#hud{position:fixed;top:0;left:0;right:0;pointer-events:none;z-index:20}
+#topBar{display:flex;align-items:center;gap:10px;padding:14px 18px;
+  background:linear-gradient(180deg,rgba(0,0,0,.65) 0%,transparent)}
+.pill{display:flex;align-items:center;gap:8px;padding:7px 15px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  border-radius:99px;backdrop-filter:blur(8px)}
+.pill .ico{font-size:.95rem}
+.pill .val{font-size:1.05rem;font-weight:700;color:#fff;min-width:32px}
+.pill .lbl{font-size:.62rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;
+  color:rgba(255,255,255,.4)}
+
+/* ── Boost bar ───────────────────────── */
+#boostWrap{position:fixed;bottom:68px;left:50%;transform:translateX(-50%);
+  width:160px;pointer-events:none;z-index:20;display:flex;flex-direction:column;
+  align-items:center;gap:4px}
+#boostLbl{font-size:.6rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:rgba(255,255,255,.3)}
+#boostTrack{width:100%;height:5px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden}
+#boostFill{height:100%;border-radius:99px;background:linear-gradient(90deg,#00e5ff,#00ff88);
+  transition:width .1s,background .3s}
+
+/* ── Leaderboard ─────────────────────── */
+#lb{position:fixed;top:76px;right:14px;width:175px;padding:12px;
+  background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.07);
+  border-radius:14px;backdrop-filter:blur(10px);z-index:20;pointer-events:none}
+#lb h2{font-size:.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+  color:rgba(255,255,255,.35);margin-bottom:10px;text-align:center}
+.lbRow{display:flex;align-items:center;gap:7px;padding:3px 2px;
+  font-size:.78rem;color:rgba(255,255,255,.7);border-bottom:1px solid rgba(255,255,255,.05)}
+.lbRow:last-child{border-bottom:none}
+.lbRank{font-weight:700;color:rgba(255,255,255,.3);width:14px;text-align:center}
+.lbDot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.lbName{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lbLen{font-weight:700;color:#fff}
+.lbRow.me{background:rgba(46,213,115,.09);border-radius:6px}
+
+/* ── Minimap ─────────────────────────── */
+#mm{position:fixed;bottom:14px;right:14px;width:130px;height:130px;border-radius:10px;
+  border:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.45);
+  backdrop-filter:blur(6px);z-index:20;overflow:hidden}
+#mmC{display:block}
+
+/* ── Kill feed ───────────────────────── */
+#kf{position:fixed;top:76px;left:14px;z-index:20;pointer-events:none;display:flex;flex-direction:column;gap:5px}
+.kfEntry{font-size:.72rem;padding:5px 11px;background:rgba(0,0,0,.55);border-radius:6px;
+  border-left:3px solid #ff4757;animation:kfIn .2s ease;backdrop-filter:blur(6px)}
+@keyframes kfIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+
+/* ── Overlays ────────────────────────── */
+.overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  z-index:100;background:rgba(0,0,0,.82);backdrop-filter:blur(8px)}
+.panel{text-align:center;padding:40px 50px;
+  background:linear-gradient(145deg,rgba(20,8,50,.97),rgba(6,16,42,.97));
+  border:1px solid rgba(255,255,255,.09);border-radius:24px;
+  box-shadow:0 0 80px rgba(46,213,115,.12),0 30px 80px rgba(0,0,0,.7);
+  max-width:400px;width:92%}
+.panel .em{font-size:3.2rem;display:block;margin-bottom:6px}
+.panel h1{font-size:2.4rem;font-weight:900;
+  background:linear-gradient(90deg,#2ed573,#00e5ff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px}
+.panel .sub{font-size:.87rem;color:rgba(255,255,255,.38);margin-bottom:22px}
+.statsRow{display:flex;justify-content:center;gap:22px;margin-bottom:26px}
+.statBox{display:flex;flex-direction:column;align-items:center;gap:4px}
+.statBox .sv{font-size:1.9rem;font-weight:900;color:#ffd700}
+.statBox .sl{font-size:.62rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.3)}
+.ctrlGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:24px;text-align:left}
+.ctrlItem{display:flex;align-items:center;gap:7px;font-size:.78rem;color:rgba(255,255,255,.5)}
+.key{padding:3px 8px;border:1px solid rgba(255,255,255,.2);border-radius:5px;
+  background:rgba(255,255,255,.06);font-size:.7rem;color:rgba(255,255,255,.55);font-weight:600}
+#nameInput{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);border-radius:10px;
+  padding:10px 16px;font-size:1rem;font-family:'Outfit',sans-serif;color:#fff;
+  width:100%;margin-bottom:18px;outline:none;text-align:center}
+#nameInput:focus{border-color:rgba(46,213,115,.5)}
+#nameInput::placeholder{color:rgba(255,255,255,.22)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:13px 32px;border:none;
+  border-radius:11px;font-size:.97rem;font-weight:700;font-family:'Outfit',sans-serif;cursor:pointer;
+  transition:transform .15s,box-shadow .15s}
+.btn:hover{transform:translateY(-2px)}
+.btnGreen{background:linear-gradient(135deg,#2ed573,#00b894);color:#001a10;
+  box-shadow:0 8px 28px rgba(46,213,115,.38)}
+.btnGreen:hover{box-shadow:0 12px 36px rgba(46,213,115,.55)}
+#killedByTxt{font-size:.87rem;color:rgba(255,255,255,.38);margin-bottom:22px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="topBar">
+    <div class="pill"><span class="ico">⭐</span><div><div class="val" id="sScore">0</div><div class="lbl">Score</div></div></div>
+    <div class="pill"><span class="ico">🐍</span><div><div class="val" id="sLen">20</div><div class="lbl">Length</div></div></div>
+    <div class="pill"><span class="ico">💀</span><div><div class="val" id="sKill">0</div><div class="lbl">Kills</div></div></div>
+  </div>
+</div>
+<div id="boostWrap"><div id="boostLbl">⚡ BOOST</div><div id="boostTrack"><div id="boostFill"></div></div></div>
+<div id="lb"><h2>🏆 Leaderboard</h2><div id="lbList"></div></div>
+<div id="mm"><canvas id="mmC" width="130" height="130"></canvas></div>
+<div id="kf"></div>
+
+<!-- Start screen -->
+<div class="overlay" id="startScreen">
+  <div class="panel">
+    <span class="em">🐍</span>
+    <h1>SlitherX</h1>
+    <p class="sub">Eat · Grow · Dominate</p>
+    <input id="nameInput" type="text" maxlength="16" placeholder="Your name..." autocomplete="off" spellcheck="false">
+    <div class="ctrlGrid">
+      <div class="ctrlItem"><span class="key">Mouse</span>Steer</div>
+      <div class="ctrlItem"><span class="key">Hold Click</span>Boost</div>
+      <div class="ctrlItem"><span class="key">Drag</span>Touch steer</div>
+      <div class="ctrlItem"><span class="key">2nd finger</span>Boost</div>
+    </div>
+    <button class="btn btnGreen" onclick="startGame()">▶ &nbsp;Play Now</button>
+  </div>
+</div>
+
+<!-- Death screen -->
+<div class="overlay" id="deathScreen" style="display:none">
+  <div class="panel">
+    <span class="em">💀</span>
+    <h1>Game Over</h1>
+    <p id="killedByTxt">Ran into a snake</p>
+    <div class="statsRow">
+      <div class="statBox"><div class="sv" id="fScore">0</div><div class="sl">Score</div></div>
+      <div class="statBox"><div class="sv" id="fLen">0</div><div class="sl">Length</div></div>
+      <div class="statBox"><div class="sv" id="fKill">0</div><div class="sl">Kills</div></div>
+    </div>
+    <button class="btn btnGreen" onclick="restartGame()">↺ &nbsp;Play Again</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ════════════════════════════════════════════════════════════
+//  GLOBALS (declared first so Snake methods can close over them)
+// ════════════════════════════════════════════════════════════
+const MAP_W = 4000, MAP_H = 4000;
+const FOOD_N = 600, BOT_N = 14;
+
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const mmC    = document.getElementById('mmC');
+const mmCtx  = mmC.getContext('2d');
+
+const mouse = { x: innerWidth / 2, y: innerHeight / 2 };
+let isBoosting = false;
+
+function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// ════════════════════════════════════════════════════════════
+//  MATH
+// ════════════════════════════════════════════════════════════
+const PI2 = Math.PI * 2;
+function normA(a){ while(a > Math.PI) a -= PI2; while(a < -Math.PI) a += PI2; return a; }
+function lerpA(a, b, t){ return a + normA(b - a) * t; }
+function dist2(ax, ay, bx, by){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; }
+function fastDist(ax, ay, bx, by){ return Math.hypot(ax-bx, ay-by); }
+
+// ════════════════════════════════════════════════════════════
+//  BACKGROUND – nebula + star field
+// ════════════════════════════════════════════════════════════
+const NEBULAE = Array.from({length:8}, () => ({
+  x: Math.random()*MAP_W, y: Math.random()*MAP_H,
+  r: 380 + Math.random()*580,
+  h: Math.floor(Math.random()*360),
+  s: 55 + Math.floor(Math.random()*20),
+  dx: (Math.random()-.5)*.32,
+  dy: (Math.random()-.5)*.32,
+}));
+
+const STARS = Array.from({length:220}, () => ({
+  x: Math.random()*3600, y: Math.random()*2600,
+  r: .25 + Math.random()*1.5,
+  phase: Math.random()*PI2,
+  spd:   .003 + Math.random()*.014,
+}));
+
+function drawBG(cx, cy){
+  ctx.fillStyle = '#05050e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Stars – slow parallax tiling
+  const now = performance.now() * .001;
+  ctx.save();
+  for(const s of STARS){
+    const sx = ((s.x - cx*.04) % canvas.width  + canvas.width)  % canvas.width;
+    const sy = ((s.y - cy*.04) % canvas.height + canvas.height) % canvas.height;
+    const a  = .15 + .85 * (.5 + .5*Math.sin(now * s.spd * 60 + s.phase));
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#ffffff';
+    if(s.r > 1){ ctx.shadowBlur = 4; ctx.shadowColor = '#aad4ff'; }
+    ctx.beginPath(); ctx.arc(sx, sy, s.r, 0, PI2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+
+  // Nebula clouds
+  for(const n of NEBULAE){
+    n.x += n.dx; n.y += n.dy;
+    if(n.x < -n.r) n.x = MAP_W+n.r;  if(n.x > MAP_W+n.r) n.x = -n.r;
+    if(n.y < -n.r) n.y = MAP_H+n.r;  if(n.y > MAP_H+n.r) n.y = -n.r;
+    const sx = n.x-cx, sy = n.y-cy;
+    if(sx+n.r < 0 || sx-n.r > canvas.width || sy+n.r < 0 || sy-n.r > canvas.height) continue;
+    const g = ctx.createRadialGradient(sx,sy,0, sx,sy,n.r);
+    g.addColorStop(0,  `hsla(${n.h},${n.s}%,42%,.10)`);
+    g.addColorStop(.5, `hsla(${n.h},${n.s}%,35%,.04)`);
+    g.addColorStop(1,  'transparent');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Grid
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.025)';
+  ctx.lineWidth = 1;
+  const GS = 62;
+  const ox = ((-(cx%GS))+GS)%GS;
+  const oy = ((-(cy%GS))+GS)%GS;
+  for(let x=ox; x<canvas.width;  x+=GS){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+  for(let y=oy; y<canvas.height; y+=GS){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y);  ctx.stroke(); }
+  ctx.restore();
+}
+
+function drawBorder(cx, cy){
+  const t = performance.now() * .001;
+  const a = .45 + .4*Math.sin(t*1.8);
+  ctx.save();
+  ctx.strokeStyle = `rgba(46,213,115,${a})`;
+  ctx.lineWidth = 3;
+  ctx.shadowBlur = 20; ctx.shadowColor = '#2ed573';
+  ctx.strokeRect(-cx, -cy, MAP_W, MAP_H);
+  ctx.shadowBlur = 0;
+  const dz = 130;
+  ctx.fillStyle = 'rgba(255,60,60,.04)';
+  ctx.fillRect(-cx,           -cy,           MAP_W, dz);
+  ctx.fillRect(-cx,  MAP_H-dz-cy, MAP_W, dz);
+  ctx.fillRect(-cx,           -cy,   dz, MAP_H);
+  ctx.fillRect(MAP_W-dz-cx,  -cy,   dz, MAP_H);
+  ctx.restore();
+}
+
+// Vignette overlay
+function drawVignette(){
+  const g = ctx.createRadialGradient(
+    canvas.width/2, canvas.height/2, canvas.height*.2,
+    canvas.width/2, canvas.height/2, canvas.height*.85
+  );
+  g.addColorStop(0, 'transparent');
+  g.addColorStop(1, 'rgba(0,0,0,.45)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// ════════════════════════════════════════════════════════════
+//  FOOD
+// ════════════════════════════════════════════════════════════
+const FT = [
+  {r:4,  pts:1, prob:.60},
+  {r:6,  pts:2, prob:.22},
+  {r:9,  pts:3, prob:.12},
+  {r:13, pts:5, prob:.06},
+];
+
+class Food{
+  constructor(x, y, color){
+    this.x = (x !== undefined) ? x : Math.random()*MAP_W;
+    this.y = (y !== undefined) ? y : Math.random()*MAP_H;
+    let rnd = Math.random(), acc = 0, ti = 0;
+    for(let i=0; i<FT.length; i++){ acc += FT[i].prob; if(rnd < acc){ ti=i; break; } }
+    const t   = FT[ti];
+    this.r    = t.r;
+    this.pts  = t.pts;
+    this.tier = ti;
+    this.color = color || `hsl(${Math.random()*360|0},100%,63%)`;
+    this.phase = Math.random()*PI2;
+  }
+
+  draw(cx, cy){
+    const sx = this.x-cx, sy = this.y-cy;
+    if(sx < -20 || sx > canvas.width+20 || sy < -20 || sy > canvas.height+20) return;
+    this.phase += this.tier >= 2 ? .065 : .04;
+
+    const r = this.tier >= 2 ? this.r + Math.sin(this.phase)*1.8 : this.r;
+    ctx.save();
+
+    // Outer glow
+    ctx.shadowBlur  = this.tier >= 2 ? 24 : 12;
+    ctx.shadowColor = this.color;
+    ctx.fillStyle   = this.color;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, PI2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Inner shine
+    ctx.globalAlpha = .55;
+    ctx.fillStyle   = '#ffffff';
+    ctx.beginPath(); ctx.arc(sx - r*.28, sy - r*.28, r*.26, 0, PI2); ctx.fill();
+
+    // Pulsing ring for rare tiers
+    if(this.tier >= 2){
+      ctx.globalAlpha  = .22 + .22*Math.sin(this.phase*1.6);
+      ctx.strokeStyle  = this.color;
+      ctx.lineWidth    = 1.5;
+      ctx.shadowBlur   = 10; ctx.shadowColor = this.color;
+      ctx.beginPath(); ctx.arc(sx, sy, r + 5 + Math.sin(this.phase)*3, 0, PI2); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  PARTICLES
+// ════════════════════════════════════════════════════════════
+let particles = [];
+
+function emit(x, y, color, n, spd, life){
+  for(let i=0; i<n; i++){
+    const a = Math.random()*PI2;
+    const s = (spd||3) * (.4 + Math.random()*.85);
+    particles.push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-1, color, life:life||1, size:1.5+Math.random()*3.5 });
+  }
+}
+
+function drawParticles(cx, cy){
+  ctx.save();
+  for(let i = particles.length-1; i >= 0; i--){
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += .07; p.life -= .022;
+    if(p.life <= 0){ particles.splice(i,1); continue; }
+    const sx = p.x-cx, sy = p.y-cy;
+    if(sx < -20 || sx > canvas.width+20 || sy < -20 || sy > canvas.height+20) continue;
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle   = p.color;
+    ctx.shadowBlur  = 5; ctx.shadowColor = p.color;
+    ctx.beginPath(); ctx.arc(sx, sy, p.size*p.life, 0, PI2); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// ════════════════════════════════════════════════════════════
+//  SNAKE
+// ════════════════════════════════════════════════════════════
+class Snake{
+  constructor(x, y, hue, name, isPlayer){
+    this.x = x; this.y = y;
+    this.hue       = hue;
+    this.headColor = `hsl(${hue},100%,63%)`;
+    this.bodyColor = `hsl(${hue},70%,36%)`;
+    this.glowColor = `hsl(${hue},100%,52%)`;
+    this.rimColor  = `hsl(${hue},85%,72%)`;
+    this.name      = name || 'Snake';
+    this.isPlayer  = !!isPlayer;
+    this.angle     = Math.random()*PI2;
+    this.radius    = 11;
+    this.baseSpeed = 2.8 + Math.random()*.4;
+    this.length    = 20;
+    this.body      = Array.from({length:20}, () => ({x, y}));
+    this.alive     = true;
+    this.kills     = 0;
+    this.boostFuel = 1;
+    this.phase     = Math.random()*PI2;
+    // AI
+    this.state       = 'seek';
+    this.targetX     = x;
+    this.targetY     = y;
+    this.stateTimer  = 0;
+    this.thinkOffset = Math.floor(Math.random()*5); // stagger AI ticks
+    this.aggression  = .3 + Math.random()*.7;
+    this.caution     = .3 + Math.random()*.7;
+    this._wX = x; this._wY = y;
+    this._wA = Math.random()*PI2;
+    this._tick = 0;
+  }
+
+  get score(){ return Math.floor((this.length - 20) * 10); }
+
+  // ── MOVEMENT ────────────────────────────────────────────
+  update(tx, ty){
+    if(!this.alive) return;
+    this.phase += .08;
+
+    const isBst = this.isPlayer
+      ? (isBoosting && this.boostFuel > 0 && this.length > 12)
+      : (this.state === 'hunt' && this.boostFuel > .15 && this.length > 30);
+
+    const spd = this.baseSpeed * (isBst ? 1.95 : 1);
+
+    if(isBst){
+      this.boostFuel = Math.max(0, this.boostFuel - .007);
+      this.length    = Math.max(12, this.length - .06);
+      if(this.isPlayer){
+        const tail = this.body[this.body.length-1] || this;
+        if(Math.random() < .5) emit(tail.x, tail.y, this.headColor, 1, 1.2, .55);
+      }
+    } else {
+      this.boostFuel = Math.min(1, this.boostFuel + .003);
+    }
+
+    // Steer toward target
+    const refX = this.isPlayer ? canvas.width/2  : this.x;
+    const refY = this.isPlayer ? canvas.height/2 : this.y;
+    this.angle = lerpA(this.angle, Math.atan2(ty - refY, tx - refX), this.isPlayer ? .13 : .09);
+
+    this.x += Math.cos(this.angle) * spd;
+    this.y += Math.sin(this.angle) * spd;
+
+    const m = this.radius + 8;
+    this.x = Math.max(m, Math.min(MAP_W-m, this.x));
+    this.y = Math.max(m, Math.min(MAP_H-m, this.y));
+
+    this.body.unshift({x:this.x, y:this.y});
+    while(this.body.length > Math.ceil(this.length)) this.body.pop();
+  }
+
+  // ── BEAUTIFUL BEZIER BODY ────────────────────────────────
+  draw(cx, cy){
+    if(!this.alive) return;
+    const body = this.body, n = body.length;
+    if(n < 2) return;
+
+    // Build smooth quadratic bezier path through body segments
+    const buildPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(body[0].x - cx, body[0].y - cy);
+      for(let i = 1; i < n-1; i++){
+        const mx = (body[i].x + body[i+1].x) / 2 - cx;
+        const my = (body[i].y + body[i+1].y) / 2 - cy;
+        ctx.quadraticCurveTo(body[i].x - cx, body[i].y - cy, mx, my);
+      }
+      ctx.lineTo(body[n-1].x - cx, body[n-1].y - cy);
+    };
+
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Pass 1 – wide outer aura / glow halo
+    buildPath();
+    ctx.globalAlpha = .13;
+    ctx.strokeStyle = this.glowColor;
+    ctx.lineWidth   = this.radius*2 + 24;
+    ctx.stroke();
+
+    // Pass 2 – solid body
+    buildPath();
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur  = 10; ctx.shadowColor = this.glowColor;
+    ctx.strokeStyle = this.bodyColor;
+    ctx.lineWidth   = this.radius*2;
+    ctx.stroke();
+    ctx.shadowBlur  = 0;
+
+    // Pass 3 – bright inner stripe (center ridge)
+    buildPath();
+    ctx.globalAlpha = .28;
+    ctx.strokeStyle = this.rimColor;
+    ctx.lineWidth   = this.radius * .55;
+    ctx.stroke();
+
+    // Pass 4 – thin specular shine
+    buildPath();
+    ctx.globalAlpha = .1;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth   = this.radius * .18;
+    ctx.stroke();
+
+    // Scale texture – small bright dots at intervals
+    ctx.globalAlpha = .18;
+    ctx.fillStyle   = '#ffffff';
+    ctx.shadowBlur  = 0;
+    for(let i = 3; i < n; i += 4){
+      const seg = body[i];
+      const sx = seg.x - cx, sy = seg.y - cy;
+      if(sx < -25 || sx > canvas.width+25 || sy < -25 || sy > canvas.height+25) continue;
+      ctx.beginPath(); ctx.arc(sx, sy, this.radius * .18, 0, PI2); ctx.fill();
+    }
+    ctx.restore();
+
+    this._drawHead(cx, cy);
+    this._drawLabel(cx, cy);
+  }
+
+  _drawHead(cx, cy){
+    const sx = this.x - cx, sy = this.y - cy;
+    if(sx < -40 || sx > canvas.width+40 || sy < -40 || sy > canvas.height+40) return;
+    const r = this.radius;
+    ctx.save();
+
+    // Outer glow halo
+    ctx.beginPath(); ctx.arc(sx, sy, r+8, 0, PI2);
+    ctx.fillStyle = this.glowColor; ctx.globalAlpha = .18;
+    ctx.shadowBlur = 28; ctx.shadowColor = this.glowColor; ctx.fill();
+
+    // Head with radial gradient (gives 3D sphere look)
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur  = 16; ctx.shadowColor = this.glowColor;
+    const hg = ctx.createRadialGradient(sx-r*.38, sy-r*.38, 0, sx, sy, r*1.12);
+    hg.addColorStop(0,   this.rimColor);
+    hg.addColorStop(.45, this.headColor);
+    hg.addColorStop(1,   this.bodyColor);
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, PI2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Eyes
+    const eo = r*.5, er = r*.26, ep = r*.1;
+    for(const off of [.44, -.44]){
+      const ex = sx + Math.cos(this.angle + off) * eo;
+      const ey = sy + Math.sin(this.angle + off) * eo;
+      ctx.globalAlpha = 1;
+      ctx.fillStyle   = '#fff';
+      ctx.shadowBlur  = 4; ctx.shadowColor = '#fff';
+      ctx.beginPath(); ctx.arc(ex, ey, er, 0, PI2); ctx.fill();
+      // Pupil follows movement
+      ctx.fillStyle  = '#0a0a12'; ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(ex + Math.cos(this.angle)*ep, ey + Math.sin(this.angle)*ep, er*.54, 0, PI2); ctx.fill();
+      // Eye gleam
+      ctx.fillStyle  = 'rgba(255,255,255,.65)';
+      ctx.beginPath(); ctx.arc(ex - er*.2, ey - er*.25, er*.22, 0, PI2); ctx.fill();
+    }
+
+    // Tongue (animated flick)
+    const lick = Math.sin(this.phase * 3) > .7;
+    if(lick){
+      const tx2 = sx + Math.cos(this.angle) * (r + 10);
+      const ty2 = sy + Math.sin(this.angle) * (r + 10);
+      ctx.strokeStyle = '#ff5577'; ctx.lineWidth = 1.5;
+      ctx.globalAlpha = .9; ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.moveTo(sx+Math.cos(this.angle)*r, sy+Math.sin(this.angle)*r);
+      ctx.lineTo(tx2, ty2);
+      const fk = 6;
+      ctx.moveTo(tx2, ty2); ctx.lineTo(tx2+Math.cos(this.angle+.5)*fk, ty2+Math.sin(this.angle+.5)*fk);
+      ctx.moveTo(tx2, ty2); ctx.lineTo(tx2+Math.cos(this.angle-.5)*fk, ty2+Math.sin(this.angle-.5)*fk);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  _drawLabel(cx, cy){
+    const hx = this.x - cx, hy = this.y - cy;
+    if(hx < -60 || hx > canvas.width+60 || hy < -60 || hy > canvas.height+60) return;
+    ctx.save();
+    ctx.font = '600 11px Outfit'; ctx.textAlign = 'center';
+    ctx.fillStyle  = 'rgba(255,255,255,.88)';
+    ctx.shadowBlur = 8; ctx.shadowColor = this.glowColor;
+    ctx.fillText(this.name, hx, hy - this.radius - 9);
+    ctx.restore();
+  }
+
+  // ════════════════════════════════════════════════════════
+  //  AI BRAIN – State machine + raycast obstacle avoidance
+  // ════════════════════════════════════════════════════════
+  think(player, bots, foods){
+    if(!this.alive) return;
+    this._tick++;
+    // Stagger: different bots think on different frames (~12 Hz AI)
+    if((this._tick + this.thinkOffset) % 5 !== 0) return;
+
+    const allSnakes = [player, ...bots];
+    const dp  = fastDist(this.x, player.x, this.y, player.y); // note: 4 args wrong → fix below
+    const dpp = fastDist(this.x, this.y, player.x, player.y);
+    const wd  = Math.min(this.x, this.y, MAP_W-this.x, MAP_H-this.y);
+    this.stateTimer = Math.max(0, this.stateTimer - 5);
+
+    // ── State selection ──
+    if(wd < 200){
+      this.state = 'wall'; this.stateTimer = 70;
+    } else if(player.length > this.length * 1.2 && dpp < 380 && this.caution > .4 && this.stateTimer <= 0){
+      this.state = 'flee'; this.stateTimer = 55;
+    } else if(this.length > player.length * 1.2 && dpp < 520 && this.aggression > .5 && this.stateTimer <= 0){
+      this.state = 'hunt'; this.stateTimer = 75;
+    } else if(this.stateTimer <= 0){
+      this.state = 'seek';
+    }
+
+    // ── Compute desired target position ──
+    let tx, ty;
+    switch(this.state){
+      case 'wall':
+        tx = MAP_W/2 + (Math.random()-.5)*500;
+        ty = MAP_H/2 + (Math.random()-.5)*500;
+        this.stateTimer = 90;
+        break;
+
+      case 'flee':{
+        // Run directly away from player, slightly randomized
+        const a = Math.atan2(this.y-player.y, this.x-player.x) + (Math.random()-.5)*.6;
+        tx = this.x + Math.cos(a)*700;
+        ty = this.y + Math.sin(a)*700;
+        break;
+      }
+
+      case 'hunt':{
+        // Predictive interception – aim where player WILL be
+        const pred = dpp / (this.baseSpeed * 1.85);
+        tx = player.x + Math.cos(player.angle) * player.baseSpeed * pred;
+        ty = player.y + Math.sin(player.angle) * player.baseSpeed * pred;
+        break;
+      }
+
+      default:{ // 'seek'
+        // Find nearest high-value food within sense range
+        let best = null, bScore = -Infinity;
+        for(const f of foods){
+          const fd = fastDist(this.x, this.y, f.x, f.y);
+          if(fd > 580) continue;
+          const s = f.pts * 85 / (fd + 1);
+          if(s > bScore){ bScore = s; best = f; }
+        }
+        if(best){
+          tx = best.x; ty = best.y;
+        } else {
+          // Smooth wander – drift angle slowly
+          if(fastDist(this.x, this.y, this._wX, this._wY) < 90){
+            this._wA += (Math.random()-.5)*1.5;
+            const wd2 = 220 + Math.random()*220;
+            this._wX = Math.max(250, Math.min(MAP_W-250, this.x + Math.cos(this._wA)*wd2));
+            this._wY = Math.max(250, Math.min(MAP_H-250, this.y + Math.sin(this._wA)*wd2));
+          }
+          tx = this._wX; ty = this._wY;
+        }
+        break;
+      }
+    }
+
+    // ── Raycast obstacle avoidance ──
+    const desiredAngle  = Math.atan2(ty - this.y, tx - this.x);
+    const safeAngle     = this._castRays(desiredAngle, allSnakes);
+    this.targetX = this.x + Math.cos(safeAngle) * 200;
+    this.targetY = this.y + Math.sin(safeAngle) * 200;
+  }
+
+  /**
+   * Cast N rays around `desired` angle, score each by clearance.
+   * Returns the angle with the best score (most clear & closest to goal).
+   */
+  _castRays(desired, allSnakes){
+    const N = 9, SPREAD = Math.PI * .65, RANGE = 140, STEPS = 6;
+    let bestAngle = desired, bestScore = -Infinity;
+
+    for(let i = 0; i < N; i++){
+      const t  = N > 1 ? (i/(N-1) - .5) : 0;
+      const ta = desired + t * SPREAD;
+      let clearance = 1;
+
+      outerLoop:
+      for(let s = 1; s <= STEPS; s++){
+        const frac = s / STEPS;
+        const rx = this.x + Math.cos(ta) * RANGE * frac;
+        const ry = this.y + Math.sin(ta) * RANGE * frac;
+
+        // Wall penalty
+        if(rx < 90 || ry < 90 || rx > MAP_W-90 || ry > MAP_H-90){
+          clearance = Math.min(clearance, frac * .35);
+          break;
+        }
+
+        // Check only snakes that are nearby (performance guard)
+        for(const snake of allSnakes){
+          if(snake === this) continue;
+          if(dist2(this.x, this.y, snake.x, snake.y) > (RANGE + 250)**2) continue;
+          const thr2 = (snake.radius + this.radius + 7)**2;
+          for(let si = 3; si < snake.body.length; si += 3){
+            const seg = snake.body[si];
+            if(dist2(rx, ry, seg.x, seg.y) < thr2){
+              clearance = Math.min(clearance, frac - 1/STEPS);
+              break outerLoop;
+            }
+          }
+        }
+      }
+
+      const angDiff = Math.abs(normA(ta - desired));
+      const score   = clearance * 3 - angDiff * .7;
+      if(score > bestScore){ bestScore = score; bestAngle = ta; }
+    }
+    return bestAngle;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  GAME STATE
+// ════════════════════════════════════════════════════════════
+const BOT_NAMES = ['Viper','Shadow','Nyx','Blitz','Zara','Apex','Ghost','Titan','Nova','Ryuu','Sable','Onyx','Echo','Storm','Lyra','Drake','Orion','Phoenix','Kai','Zen','Mira','Hex'];
+const BOT_HUES  = [0, 28, 52, 90, 130, 170, 200, 220, 250, 280, 310, 340, 15, 75, 195, 240];
+const PLAYER_HUE = 145; // green
+
+let player, foods, bots;
+let camX = 0, camY = 0, tCX = 0, tCY = 0;
+let kills = 0, rafId = null, lastTime = 0;
+let gameDead = false;
+
+function init(){
+  kills = 0; gameDead = false; particles = [];
+  const name = document.getElementById('nameInput')?.value.trim() || 'You';
+  player = new Snake(MAP_W/2, MAP_H/2, PLAYER_HUE, name, true);
+  foods  = Array.from({length: FOOD_N}, () => new Food());
+  const usedN = new Set([name]);
+  bots = [];
+  for(let i = 0; i < BOT_N; i++){
+    let n; do{ n = BOT_NAMES[Math.floor(Math.random()*BOT_NAMES.length)]; } while(usedN.has(n));
+    usedN.add(n);
+    const h = BOT_HUES[i % BOT_HUES.length];
+    bots.push(new Snake(Math.random()*MAP_W, Math.random()*MAP_H, h, n, false));
+  }
+  camX = player.x - canvas.width/2;
+  camY = player.y - canvas.height/2;
+}
+
+function mkBot(){
+  const usedN = new Set(bots.map(b => b.name).concat([player.name]));
+  let n; do{ n = BOT_NAMES[Math.floor(Math.random()*BOT_NAMES.length)]; } while(usedN.has(n));
+  const h = BOT_HUES[Math.floor(Math.random()*BOT_HUES.length)];
+  return new Snake(Math.random()*MAP_W, Math.random()*MAP_H, h, n, false);
+}
+
+function killBot(bot, killerName){
+  // Drop food at body segments
+  const maxDrop = Math.min(Math.floor(bot.body.length/2), 65);
+  for(let i = 0; i < bot.body.length && i < maxDrop*2; i += 2){
+    foods.push(new Food(bot.body[i].x, bot.body[i].y, bot.headColor));
+  }
+  // Cap food pool
+  const excess = foods.length - (FOOD_N + 300);
+  if(excess > 0) foods.splice(0, excess);
+
+  emit(bot.x, bot.y, bot.headColor, 36, 5, 1.3);
+  showKill(killerName, bot.name);
+  bots.splice(bots.indexOf(bot), 1, mkBot());
+}
+
+function endGame(reason){
+  gameDead = true;
+  cancelAnimationFrame(rafId);
+  emit(player.x, player.y, player.headColor, 45, 5.5, 1.4);
+  document.getElementById('killedByTxt').textContent = reason || 'Ran into a snake';
+  document.getElementById('fScore').textContent = player.score;
+  document.getElementById('fLen').textContent   = Math.floor(player.length);
+  document.getElementById('fKill').textContent  = kills;
+  setTimeout(() => document.getElementById('deathScreen').style.display = 'flex', 600);
+}
+
+// ════════════════════════════════════════════════════════════
+//  KILL FEED
+// ════════════════════════════════════════════════════════════
+function showKill(killer, victim){
+  const kf = document.getElementById('kf');
+  const el = document.createElement('div');
+  el.className = 'kfEntry';
+  el.innerHTML = `<span style="color:#ccc">${killer}</span> ✕ <span style="color:#ff6b81">${victim}</span>`;
+  kf.prepend(el);
+  if(kf.children.length > 6) kf.lastChild.remove();
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ════════════════════════════════════════════════════════════
+//  MINIMAP
+// ════════════════════════════════════════════════════════════
+let mmTick = 0;
+function drawMinimap(){
+  if(++mmTick % 4 !== 0) return;
+  const mw = mmC.width, mh = mmC.height;
+  const sx = mw/MAP_W, sy = mh/MAP_H;
+  mmCtx.clearRect(0,0,mw,mh);
+  mmCtx.fillStyle = 'rgba(0,0,0,.68)'; mmCtx.fillRect(0,0,mw,mh);
+  // Foods (sampled)
+  mmCtx.globalAlpha = .38;
+  for(let i = 0; i < foods.length; i += 5){
+    const f = foods[i]; mmCtx.fillStyle = f.color;
+    mmCtx.fillRect(f.x*sx, f.y*sy, 1.5, 1.5);
+  }
+  // Bots
+  mmCtx.globalAlpha = 1;
+  for(const b of bots){
+    mmCtx.beginPath(); mmCtx.arc(b.x*sx, b.y*sy, 2.5, 0, PI2);
+    mmCtx.fillStyle = b.headColor; mmCtx.fill();
+  }
+  // Player
+  mmCtx.beginPath(); mmCtx.arc(player.x*sx, player.y*sy, 4.5, 0, PI2);
+  mmCtx.fillStyle = '#fff'; mmCtx.shadowBlur = 7; mmCtx.shadowColor = '#2ed573'; mmCtx.fill();
+  mmCtx.shadowBlur = 0;
+  // Viewport rect
+  mmCtx.strokeStyle = 'rgba(255,255,255,.2)'; mmCtx.lineWidth = 1;
+  mmCtx.strokeRect(camX*sx, camY*sy, canvas.width*sx, canvas.height*sy);
+}
+
+// ════════════════════════════════════════════════════════════
+//  LEADERBOARD
+// ════════════════════════════════════════════════════════════
+let lbTick = 0;
+function updateLB(){
+  if(++lbTick % 18 !== 0) return;
+  const all = [player, ...bots].sort((a,b) => b.length - a.length).slice(0,8);
+  document.getElementById('lbList').innerHTML = all.map((s,i) => `
+    <div class="lbRow${s===player?' me':''}">
+      <span class="lbRank">${i+1}</span>
+      <span class="lbDot" style="background:${s.headColor}"></span>
+      <span class="lbName">${s.name}</span>
+      <span class="lbLen">${Math.floor(s.length)}</span>
+    </div>`).join('');
+}
+
+// ════════════════════════════════════════════════════════════
+//  COLLISION DETECTION (optimised with Manhattan pre-filter)
+// ════════════════════════════════════════════════════════════
+function checkCollisions(){
+  // ── Player eats food ──
+  for(let i = foods.length-1; i >= 0; i--){
+    const f = foods[i];
+    const dx = player.x-f.x, dy = player.y-f.y;
+    const rSum = player.radius + f.r;
+    if(Math.abs(dx) > rSum || Math.abs(dy) > rSum) continue;
+    if(dx*dx + dy*dy < rSum*rSum){
+      player.length += f.pts;
+      emit(f.x, f.y, f.color, 5, 2, .5);
+      foods.splice(i, 1); foods.push(new Food());
+    }
+  }
+
+  // ── Bots eat food ──
+  for(const bot of bots){
+    for(let i = foods.length-1; i >= 0; i--){
+      const f = foods[i];
+      const dx = bot.x-f.x, dy = bot.y-f.y;
+      const rSum = bot.radius + f.r;
+      if(Math.abs(dx) > rSum || Math.abs(dy) > rSum) continue;
+      if(dx*dx + dy*dy < rSum*rSum){
+        bot.length += f.pts;
+        foods.splice(i, 1); foods.push(new Food()); break;
+      }
+    }
+  }
+
+  // ── Player hits bot body ──
+  for(const bot of bots){
+    const thr2 = (player.radius + bot.radius*.72)**2;
+    const guard = player.radius + bot.radius;
+    for(let si = 3; si < bot.body.length; si += 2){
+      const seg = bot.body[si];
+      const dx = player.x - seg.x, dy = player.y - seg.y;
+      if(Math.abs(dx) > guard || Math.abs(dy) > guard) continue;
+      if(dx*dx + dy*dy < thr2){ endGame(`Killed by ${bot.name}`); return; }
+    }
+  }
+
+  // ── Bot hits player body ──
+  for(const bot of bots){
+    const thr2 = (bot.radius + player.radius*.72)**2;
+    const guard = bot.radius + player.radius;
+    for(let si = 3; si < player.body.length; si += 2){
+      const seg = player.body[si];
+      const dx = bot.x - seg.x, dy = bot.y - seg.y;
+      if(Math.abs(dx) > guard || Math.abs(dy) > guard) continue;
+      if(dx*dx + dy*dy < thr2){
+        killBot(bot, player.name);
+        kills++;
+        document.getElementById('sKill').textContent = kills;
+        break;
+      }
+    }
+  }
+
+  // ── Bot vs Bot ──
+  for(let bi = 0; bi < bots.length; bi++){
+    const b = bots[bi];
+    let dead = false;
+    for(let oi = 0; oi < bots.length && !dead; oi++){
+      if(bi === oi) continue;
+      const ob = bots[oi];
+      const thr2  = (b.radius + ob.radius*.72)**2;
+      const guard = b.radius + ob.radius;
+      for(let si = 3; si < ob.body.length; si += 2){
+        const seg = ob.body[si];
+        const dx = b.x - seg.x, dy = b.y - seg.y;
+        if(Math.abs(dx) > guard || Math.abs(dy) > guard) continue;
+        if(dx*dx + dy*dy < thr2){ killBot(b, ob.name); ob.kills++; dead=true; break; }
+      }
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  MAIN GAME LOOP
+// ════════════════════════════════════════════════════════════
+function gameLoop(ts){
+  rafId = requestAnimationFrame(gameLoop);
+  lastTime = ts;
+
+  // Smooth camera lerp
+  tCX = player.x - canvas.width/2;
+  tCY = player.y - canvas.height/2;
+  camX += (tCX - camX) * .1;
+  camY += (tCY - camY) * .1;
+
+  drawBG(camX, camY);
+  drawBorder(camX, camY);
+
+  // Draw food
+  for(const f of foods) f.draw(camX, camY);
+
+  // Bots
+  for(const bot of bots){
+    bot.think(player, bots, foods);
+    bot.update(bot.targetX, bot.targetY);
+    bot.draw(camX, camY);
+  }
+
+  // Player
+  player.update(mouse.x, mouse.y);
+  player.draw(camX, camY);
+
+  drawParticles(camX, camY);
+  drawVignette();
+
+  if(!gameDead) checkCollisions();
+
+  // HUD
+  document.getElementById('sScore').textContent = player.score;
+  document.getElementById('sLen').textContent   = Math.floor(player.length);
+  const bp = player.boostFuel * 100;
+  const bf = document.getElementById('boostFill');
+  bf.style.width      = bp + '%';
+  bf.style.background = bp < 25
+    ? 'linear-gradient(90deg,#ff4757,#ff6b81)'
+    : 'linear-gradient(90deg,#00e5ff,#00ff88)';
+
+  updateLB();
+  drawMinimap();
+}
+
+// ════════════════════════════════════════════════════════════
+//  INPUT
+// ════════════════════════════════════════════════════════════
+window.addEventListener('mousemove',  e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('mousedown',  () => isBoosting = true);
+window.addEventListener('mouseup',    () => isBoosting = false);
+
+let t0id = null;
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(t0id === null){ t0id = t.identifier; mouse.x = t.clientX; mouse.y = t.clientY; }
+    else isBoosting = true;
+  }
+}, {passive:false});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for(const t of e.changedTouches){ if(t.identifier === t0id){ mouse.x = t.clientX; mouse.y = t.clientY; } }
+}, {passive:false});
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  for(const t of e.changedTouches){ if(t.identifier === t0id){ t0id = null; } else isBoosting = false; }
+}, {passive:false});
+
+// ════════════════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════════════════
+function startGame(){
+  document.getElementById('startScreen').style.display = 'none';
+  init();
+  lastTime = performance.now();
+  gameLoop(lastTime);
+}
+function restartGame(){
+  cancelAnimationFrame(rafId);
+  document.getElementById('deathScreen').style.display = 'none';
+  init();
+  lastTime = performance.now();
+  gameLoop(lastTime);
+}
+document.getElementById('nameInput')?.addEventListener('keydown', e => { if(e.key === 'Enter') startGame(); });
+</script>
+</body>
+</html>
